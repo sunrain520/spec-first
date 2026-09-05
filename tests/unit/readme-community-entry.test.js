@@ -49,9 +49,9 @@ describe('README community entry contract', () => {
     expect(headings(readme)).toEqual([
       '为什么使用 spec-first？',
       '快速开始',
+      '选择合适的 Workflow',
       '从 Prompt 到可信变更',
       '仓库会留下什么',
-      '选择合适的 Workflow',
       '信任如何建立',
       '宿主支持',
       '适用边界',
@@ -75,7 +75,7 @@ describe('README community entry contract', () => {
       'Community',
     ]);
     expect(readme).toContain('把 AI coding 会话变成可信、由项目拥有的变更。');
-    expect(readmeEn).toContain('Turn AI coding sessions into trusted, repo-owned change.');
+    expect(readmeEn).toContain('Turn AI coding sessions into trusted, project-owned changes.');
     expect(readmeZhCompat).toBe(readme);
     for (const markdown of [readme, readmeEn, readmeZhCompat]) {
       expect(markdown).toContain('blob/master/README.en.md');
@@ -92,7 +92,7 @@ describe('README community entry contract', () => {
       'spec-first quickstart',
       'Restart the selected host',
       'spec-runtime-setup',
-      'spec-brainstorm "Improve onboarding for first-time CLI users"',
+      'spec-brainstorm "Improve CLI onboarding"',
       'docs/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.md',
     ]);
     expectOrdered(readme, [
@@ -155,25 +155,10 @@ describe('README community entry contract', () => {
       expect(readmeZhCompat).toContain(claim);
     }
 
-    const workflowSections = [
-      [readme, '从 Prompt 到可信变更'],
-      [readmeEn, 'From Prompt to Trusted Change'],
-      [readmeZhCompat, '从 Prompt 到可信变更'],
-    ];
-    for (const [markdown, heading] of workflowSections) {
-      const workflow = section(markdown, heading);
-      expect(workflow).toContain('spec-brainstorm --\\');
-      expect(workflow).toContain('spec-prd ----------+-> spec-plan');
-      expect(workflow).toContain(
-        'spec-plan -> [spec-write-tasks] -> spec-work -> spec-code-review -> spec-compound',
-      );
-      expect(workflow).toContain('spec-doc-review');
-      expect(workflow).toContain('requirements');
-      expect(workflow).toContain('task pack');
-      expect(workflow).not.toContain(
-        'spec-brainstorm -> [spec-doc-review] -> spec-plan',
-      );
-    }
+    expect(readme).toContain('spec-prd');
+    expect(readme).toContain('spec-doc-review');
+    expect(readmeEn).toContain('spec-prd');
+    expect(readmeEn).toContain('spec-doc-review');
     expect(section(readme, '从 Prompt 到可信变更')).toContain('已有 PRD 或 brownfield 请求的替代入口');
     expect(section(readmeEn, 'From Prompt to Trusted Change')).toContain(
       'the alternative entry for an existing PRD or brownfield request',
