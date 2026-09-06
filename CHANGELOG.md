@@ -1,6 +1,10 @@
 # Changelog
 
-- v1.15.2 2026-09-06: docs(plan): 按全面审查建议补强下一阶段开发顺序的 S0 出口、S1 范围门槛、S3 fresh-source 证据模板、S4 比较矩阵与预算降级规则、X1 完成条件及 freshness 复核要求；仅修改方案与变更记录，未执行产品开发或模型评测。
+- v1.15.2 2026-09-07 00:00:00 leokuang: fix(runtime-setup): 修复 Claude 宿主 spec-runtime-setup mutation 全部被 `host-invocation-surface-unverified` 阻断的回归——`HOST_SKILL_SURFACES` 未登记 claude 的 workflow 投射根 `.claude/spec-first/workflows`（surface 改为按宿主多根登记，与 adapter 投射根对齐）；receipt schema host enum 补齐 zcode；新增 drift-guard 单测强制 surface 登记面与 adapter workflowsRoot、schema enum 与 CANONICAL_HOSTS 同步。 (user-visible)
+
+- v1.15.2 2026-09-06 12:00:00 codex: docs(plan): 逐项补齐下一阶段方案的统计预注册、独立 Judge、experiment manifest、Astra 行为 hard gate、安全红队、自治预算、多 agent 基线、成本与上下文指标、部署闭环、批次状态和 schema/映射治理；仅更新计划合同，未执行实验或产品改动。
+
+- v1.15.2 2026-09-06 11:50:00 codex: docs(plan): 按全面审查建议补强下一阶段开发顺序的 S0 出口、S1 范围门槛、S3 fresh-source 证据模板、S4 比较矩阵与预算降级规则、X1 完成条件及 freshness 复核要求；仅修改方案与变更记录，未执行产品开发或模型评测。
 
 - 记录格式：`- v版本号 YYYY-MM-DD HH:MM:SS 作者: 变更摘要 [(user-visible)]`
 

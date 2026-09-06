@@ -6,17 +6,21 @@ const path = require('node:path');
 
 const CANONICAL_HOSTS = Object.freeze(['claude', 'codex', 'cursor', 'kiro', 'opencode', 'qoder', 'zcode']);
 const CANONICAL_HOST_SET = new Set(CANONICAL_HOSTS);
+// 每个宿主登记 spec-runtime-setup 的全部 generated 投射根（相对 repo 根的正斜杠路径）。
+// Claude 以 workflow_command 投射到 managed workflows 根；其余宿主 workflow 根即
+// skills 根。保持与 src/cli adapters 的 skillsRoot/workflowsRoot 同步——
+// tests/unit/mcp-setup-config-consumers.test.js 的 drift-guard 用例强制这一一致性。
 const HOST_SKILL_SURFACES = Object.freeze({
-  claude: '.claude/skills',
-  codex: '.agents/skills',
-  cursor: '.cursor/skills',
-  kiro: '.kiro/skills',
-  qoder: '.qoder/skills',
-  opencode: '.opencode/skills',
+  claude: Object.freeze(['.claude/spec-first/workflows']),
+  codex: Object.freeze(['.agents/skills']),
+  cursor: Object.freeze(['.cursor/skills']),
+  kiro: Object.freeze(['.kiro/skills']),
+  qoder: Object.freeze(['.qoder/skills']),
+  opencode: Object.freeze(['.opencode/skills']),
   // ZCode discovers skills from the same shared AGENTS.md-ecosystem root Codex
   // projects to; resolveLoadedHostSurface returns every host bound to the
   // matched surface so a zcode pin confirms against the shared root.
-  zcode: '.agents/skills',
+  zcode: Object.freeze(['.agents/skills']),
 });
 
 function resolveHostAuthority({
@@ -132,19 +136,24 @@ function resolveLoadedHostSurface(skillRoot) {
     return null;
   }
   const normalized = canonicalRoot.split(path.sep).join('/').replace(/\/$/, '');
-  const hosts = [];
   let matchedSurfaceId = null;
-  for (const [host, surfaceId] of Object.entries(HOST_SKILL_SURFACES)) {
-    if (!normalized.endsWith(`/${surfaceId}/spec-runtime-setup`)) {
-      continue;
+  for (const surfaceIds of Object.values(HOST_SKILL_SURFACES)) {
+    for (const surfaceId of surfaceIds) {
+      if (normalized.endsWith(`/${surfaceId}/spec-runtime-setup`)) {
+        matchedSurfaceId = surfaceId;
+        break;
+      }
     }
-    if (matchedSurfaceId === null) {
-      matchedSurfaceId = surfaceId;
-    }
-    if (surfaceId === matchedSurfaceId) {
-      hosts.push(host);
-    }
+    if (matchedSurfaceId !== null) break;
   }
+  if (matchedSurfaceId === null) {
+    return null;
+  }
+  // 共享面（如 `.agents/skills/` 同时绑定 codex 与 zcode）返回绑定到该面的全部
+  // 宿主；不同 surface 后缀互斥，同一路径至多命中一个 surfaceId。
+  const hosts = Object.entries(HOST_SKILL_SURFACES)
+    .filter(([, surfaceIds]) => surfaceIds.includes(matchedSurfaceId))
+    .map(([host]) => host);
   if (hosts.length === 0) {
     return null;
   }

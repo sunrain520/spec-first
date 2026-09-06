@@ -326,6 +326,59 @@ describe('spec-runtime-setup host authority', () => {
     });
   });
 
+  test('confirms a claude pin loaded from the claude workflows projection root', () => {
+    const { resolveHostAuthority } = require(hostAuthorityModule);
+    const workspace = createWorkspace();
+    // Claude 投射 workflow skill 到 managed workflows 根（command 投射面），
+    // 不是 skills 根；binding 必须接受实际投射根作为 invocation surface。
+    const claudeRoot = path.join(workspace, '.claude', 'spec-first', 'workflows', 'spec-runtime-setup');
+    fs.mkdirSync(claudeRoot, { recursive: true });
+    const now = new Date('2026-09-06T08:00:00.000Z');
+
+    expect(resolveHostAuthority({
+      env: { MCP_SETUP_HOST: 'claude' },
+      mutationRequested: true,
+      candidates: ['claude'],
+      skillRoot: claudeRoot,
+      targetIdentity: workspace,
+      enforceSurfaceBinding: true,
+      now,
+    })).toMatchObject({
+      status: 'ready',
+      host: 'claude',
+      mutation_authorized: true,
+      reason_code: 'host-authority-loaded-root-bound',
+      invocation_receipt: {
+        schema_version: 'host-invocation-receipt/v1',
+        verification_status: 'confirmed',
+        host: 'claude',
+        surface_id: '.claude/spec-first/workflows',
+        skill_root: fs.realpathSync(claudeRoot),
+        enforcement_status: 'loaded-root-checked',
+        receipt_sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
+    });
+
+    expect(resolveHostAuthority({
+      env: { MCP_SETUP_HOST: 'codex' },
+      mutationRequested: true,
+      candidates: ['codex'],
+      skillRoot: claudeRoot,
+      targetIdentity: workspace,
+      enforceSurfaceBinding: true,
+      now,
+    })).toMatchObject({
+      status: 'blocked',
+      mutation_authorized: false,
+      reason_code: 'host-invocation-surface-mismatch',
+      invocation_receipt: {
+        verification_status: 'rejected',
+        loaded_host: 'claude',
+        surface_id: '.claude/spec-first/workflows',
+      },
+    });
+  });
+
   test('accepts only canonical MCP_SETUP_HOST pins for mutation', () => {
     const { resolveHostAuthority } = require(hostAuthorityModule);
 

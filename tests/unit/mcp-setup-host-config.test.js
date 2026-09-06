@@ -601,7 +601,9 @@ describe('host config resolution, inspection, and transaction', () => {
   });
 
   test.each([
-    ['claude', '.claude/skills'],
+    // claude 以 workflow_command 投射 spec-runtime-setup 到 managed workflows 根，
+    // 不是 skills 根（旧表用 .claude/skills 与实际投射不符，掩盖了 surface drift）。
+    ['claude', '.claude/spec-first/workflows'],
     ['codex', '.agents/skills'],
     ['cursor', '.cursor/skills'],
     ['kiro', '.kiro/skills'],
