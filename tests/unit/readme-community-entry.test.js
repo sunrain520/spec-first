@@ -40,8 +40,9 @@ function repositoryLinks(markdown) {
   const root = 'https://github.com/sunrain520/spec-first/blob/master/';
   return [...markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)]
     .map((match) => match[1])
-    .filter((target) => target.startsWith(root))
-    .map((target) => decodeURIComponent(target.slice(root.length).split('#')[0]));
+    .map((target) => target.startsWith(root) ? target.slice(root.length) : target)
+    .filter((target) => !/^(?:https?:|#|mailto:)/.test(target))
+    .map((target) => decodeURIComponent(target.split('#')[0]));
 }
 
 describe('README community entry contract', () => {
@@ -55,31 +56,31 @@ describe('README community entry contract', () => {
       '信任如何建立',
       '宿主支持',
       '适用边界',
-      '相关文档',
       'CLI 参考',
       '开发与贡献',
+      '相关文档',
       '加入社区',
     ]);
     expect(headings(readmeEn)).toEqual([
       'Why spec-first?',
-      'Quickstart',
+      'Quick start',
+      'Choose the Right Workflow',
       'From Prompt to Trusted Change',
       'What Stays in the Repository',
-      'Choose the Right Workflow',
       'How Trust Works',
       'Host Support',
       'When It Fits',
-      'Documentation',
       'CLI Reference',
       'Development & Contributing',
+      'Documentation',
       'Community',
     ]);
     expect(readme).toContain('把 AI coding 会话变成可信、由项目拥有的变更。');
     expect(readmeEn).toContain('Turn AI coding sessions into trusted, project-owned changes.');
     expect(readmeZhCompat).toBe(readme);
     for (const markdown of [readme, readmeEn, readmeZhCompat]) {
-      expect(markdown).toContain('blob/master/README.en.md');
-      expect(markdown).toContain('blob/master/README.md');
+      expect(markdown).toContain('(README.en.md)');
+      expect(markdown).toContain('(README.md)');
     }
     expect(Buffer.byteLength(readme)).toBeLessThanOrEqual(16 * 1024);
     expect(Buffer.byteLength(readmeEn)).toBeLessThanOrEqual(16 * 1024);
@@ -92,7 +93,7 @@ describe('README community entry contract', () => {
       'spec-first quickstart',
       'Restart the selected host',
       'spec-runtime-setup',
-      'spec-brainstorm "Improve CLI onboarding"',
+      'spec-brainstorm "Improve CLI onboarding for new users"',
       'docs/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.md',
     ]);
     expectOrdered(readme, [
@@ -100,11 +101,11 @@ describe('README community entry contract', () => {
       'spec-first quickstart',
       '重启已选择的宿主',
       'spec-runtime-setup',
-      'spec-brainstorm "改进 CLI 新用户的 onboarding"',
+      'spec-brainstorm "改进 CLI 新用户 onboarding"',
       'docs/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.md',
     ]);
 
-    for (const quickstart of [section(readmeEn, 'Quickstart'), section(readme, '快速开始')]) {
+    for (const quickstart of [section(readmeEn, 'Quick start'), section(readme, '快速开始')]) {
       expect(quickstart).toContain('Node.js `>=20.0.0`');
       expect(quickstart).toContain('spec-first init --codex -y -u <name> --lang <zh|en>');
       expect(quickstart).toContain('spec-first doctor --verbose');
@@ -122,7 +123,7 @@ describe('README community entry contract', () => {
       }
     }
     expect(section(readme, '快速开始')).toContain('workflow 可以合法地不创建文档；这不表示运行失败');
-    expect(section(readmeEn, 'Quickstart')).toContain(
+    expect(section(readmeEn, 'Quick start')).toContain(
       'the workflow may legitimately skip writing a document; that is not a failure',
     );
   });
@@ -169,9 +170,9 @@ describe('README community entry contract', () => {
     );
 
     for (const [markdown, heading] of [
-      [readme, 'CLI 参考'],
-      [readmeEn, 'CLI Reference'],
-      [readmeZhCompat, 'CLI 参考'],
+      [readme, '宿主支持'],
+      [readmeEn, 'Host Support'],
+      [readmeZhCompat, '宿主支持'],
     ]) {
       const cliReference = section(markdown, heading);
       expect(cliReference).toContain('spec-first doctor --verbose');
@@ -215,10 +216,11 @@ describe('README community entry contract', () => {
     expect(readmeEn).not.toContain('docs/assets/readme/spec-first-cli-workflow-demo.svg)');
 
     for (const demo of [demoZh, demoEn]) {
-      expect(demo).toContain('spec-runtime-setup');
-      expect(demo).toContain('✓ docs/plans/');
-      expect(demo).toContain('spec-doc-review');
-      expect(demo.match(/structured findings/g)).toHaveLength(2);
+      expect(demo).toContain('aria-labelledby="title desc"');
+      for (const label of ['Scripts / Tools', 'LLM / Agents', 'Project owner', 'canonical source', 'verification evidence', 'durable knowledge']) {
+        expect(demo).toContain(label);
+      }
+      expect(demo).not.toContain('@keyframes');
       expect(demo).not.toContain('findings resolved');
       expect(demo).not.toContain('spec-mcp-setup');
       expect(demo).not.toContain('reviews/');

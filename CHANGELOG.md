@@ -2,6 +2,10 @@
 
 - 记录格式：`- v版本号 YYYY-MM-DD HH:MM:SS 作者: 变更摘要 [(user-visible)]`
 
+- v1.15.2 2026-09-06 10:50:00 tester: docs(release): 准备 npm 补丁发布，修复 README 首次 runtime 准备顺序、英文重复标题和手册链接，恢复 preview 状态标识；更新研发 Skill 地图和架构图契约检查。README 聚焦测试 4 项通过，不把源码检查声明为宿主现场结果。 (user-visible)
+
+- v1.15.1 2026-09-06 10:35:38 tester: docs(readme): 补全中英文研发 Skill 地图，覆盖准备、需求、规划、实现、验证、PR 整改及知识维护，补充专项能力并单列内部 helper，明确按需调用与授权边界；仅修改 README 和变更记录，不影响 runtime。 (user-visible)
+
 - v1.15.1 2026-09-05 22:30:48 tester: docs(plan): 新增下一阶段开发顺序与批次执行指南，连接测量校准、现行行为基线、Astra 核心指令修订、真实任务对照和条件扩展；明确全部 OPT-01 至 OPT-12、F01 至 F33 的去向、实验组映射、source/runtime 验证及仓外支线，补战略索引。仅编写文档，未实施产品改动、模型评测或 runtime 刷新。
 
 - v1.15.1 2026-09-05 21:57:24 tester: docs(audit): 原位汇总 Astra 指令二次复审，逐项区分首审 24 项的 17 项仍在、4 项部分解决、3 项入口已解决，补充复合意图被降级、复审转写授权、调试假设过早作废、Git index 错误前提、批次确认、交互能力误判、评测 literal 保真、强制战略访谈与 goal 收尾 9 项发现；更新 33 个验收场景、整改顺序和当前 source/runtime 证据，仅修改方案与变更记录，未实施指令整改或 Astra 行为评测。

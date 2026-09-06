@@ -55,7 +55,7 @@ cd <your-repository>
 spec-first quickstart
 ```
 
-`quickstart` 会检查 Node.js、Git 和已安装的宿主 CLI，并进入初始化流程。选择宿主后，重启已选择的宿主（Restart the selected host）。重启 Claude Code、Codex 或其他目标宿主，使其发现生成的入口。
+`quickstart` 会检查 Node.js、Git 和已安装的宿主 CLI，并进入初始化流程。选择宿主后，重启已选择的宿主，使其发现生成的入口。
 
 需要脚本化或显式指定宿主时：
 
@@ -68,7 +68,13 @@ spec-first init --codex -y -u <name> --lang <zh|en>
 
 ### 2. 首次运行 workflow
 
-在宿主会话中运行（这些不是 shell 子命令）：
+在宿主会话中运行（这些不是 shell 子命令）。首次 workflow 前先准备 runtime；后续在 readiness 或配置变化时重跑：
+
+```text
+spec-runtime-setup
+```
+
+随后生成第一个需求产物：
 
 ```text
 spec-brainstorm "改进 CLI 新用户 onboarding"
@@ -80,33 +86,76 @@ spec-brainstorm "改进 CLI 新用户 onboarding"
 docs/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.md
 ```
 
-如果需求已经明确，可直接使用 `spec-plan`；准备执行时使用 `spec-work`。首次 workflow 前需要检查 provider、MCP 或 helper readiness 时，运行：
+如果需求已经明确，可直接使用 `spec-plan`；准备执行时使用 `spec-work`。如果没有值得持久化的决策，workflow 可以合法地不创建文档；这不表示运行失败。
 
-```text
-spec-runtime-setup
-```
+找不到入口时，运行 `spec-first doctor --verbose`，并核对 [Runtime Capability Catalog](docs/catalog/runtime-capabilities.md) 中的宿主限制。
 
 ## 选择合适的 Workflow
 
-### 按任务选择入口
+### 研发主流程
 
-| 你的情况 | 从这里开始 | 主要结果 |
+按当前任务进入一项即可，不要求从头依次运行。以下是能力地图，后续步骤由当前任务、验证结果和授权决定。
+
+| 阶段 | 何时使用 | Skill | 主要结果 |
+|---|---|---|---|
+| 环境准备 | 首次使用、MCP/helper 缺失或配置变化 | `spec-runtime-setup` | readiness facts 与准备结果 |
+| 方向探索 | 比较多个候选方向 | `spec-ideate` | 排序后的方向记录 |
+| 需求定义 | 有想法，但范围和成功标准未定 | `spec-brainstorm` | requirements-only plan |
+| PRD 澄清 | 已有 PRD，需要结合代码澄清 | `spec-prd` | planning-readiness artifact |
+| 文档审查 | 检查需求、计划或 task pack | `spec-doc-review` | 文档 findings；可跨阶段插入 |
+| 实现规划 | 需求确定，但实现方式未定 | `spec-plan` | implementation-ready plan |
+| 任务拆分 | 大型计划需要并行或交接（可选） | `spec-write-tasks` | 从 plan 派生的 task pack |
+| 开发实现 | 执行 plan、brief 或明确工作项 | `spec-work` | 源码变更与验证证据 |
+| 故障诊断 | 报错、失败测试、回归或根因不明 | `spec-debug` | 根因、修复与回归证据 |
+| 代码审查 | 检查 diff、分支或 PR | `spec-code-review` | 缺陷、风险和验证缺口；默认只读 |
+| PR 整改 | 用户明确要求处理 PR review 反馈 | `spec-resolve-pr-feedback` | 反馈判断与获授权的整改 |
+| 知识沉淀 | 已验证解法具有复用价值 | `spec-compound` | 带来源、适用范围和失效条件的知识 |
+| 知识维护 | 已有经验过时、重叠或与源码漂移 | `spec-compound-refresh` | 刷新、合并或退役 `docs/solutions/` 经验 |
+
+### 按需使用的研发能力
+
+| 场景 | Skill | 使用边界 |
 |---|---|---|
-| 想比较多个方向 | `spec-ideate` | 排序后的方向记录 |
-| 只有一个模糊想法 | `spec-brainstorm` | requirements-only plan |
-| 已有 PRD，需要结合代码澄清 | `spec-prd` | planning-readiness artifact |
-| 需求确定，但实现方式未定 | `spec-plan` | implementation-ready plan |
-| 计划已确定，准备开发 | `spec-work` | 源码变更与验证证据 |
-| 测试失败、回归或异常 | `spec-debug` | 根因、修复与验证证据 |
-| 审查 diff、分支或 PR | `spec-code-review` | 结构化 findings 与风险 |
-| 保存已验证的可复用经验 | `spec-compound` | `docs/solutions/` 知识 |
+| 制定产品方向与路线图 | `spec-strategy` | 创建或更新 `STRATEGY.md` |
+| 判断是否采纳外部技术 | `spec-pov` | 基于当前项目给出采用判断 |
+| 验证尚未确定的交互或产品行为 | `spec-prototype` | 可运行的临时原型，需人体验，不代表生产实现 |
+| 建立项目架构知识与约束 | `spec-project-rules` | 从源码维护架构知识库 |
+| 提取既有编码约定 | `spec-rule-miner` | 挖掘代码证据，不代替架构规则维护 |
+| 简化近期代码 | `spec-simplify-code` | 保持行为；真实缺陷交给 `spec-debug` |
+| 浏览器内打磨 UI | `spec-polish` | 启动开发服务并检查实际页面 |
+| 验证分支或 PR 的用户流程 | `spec-dogfood` | 限于变更影响面，保留浏览器验证报告 |
+| 检查移动 App PRD/Figma/源码一致性 | `spec-app-consistency-audit` | 静态跨来源审查，不代替真机或模拟器验证 |
+| 构建并验证 iOS App | `spec-test-xcode` | 用户明确调用，需 XcodeBuildMCP 与模拟器 |
+| 按指标迭代优化 | `spec-optimize` | 先定义可测目标，再按证据评估 |
+| 按可检查目标持续迭代 | `autoresearch` | 有界迭代、验证与保留/丢弃，不用于一次性排错 |
+| 创建或维护项目 Skill | `spec-write-skill` | 修改 canonical Skill source，不直接修改 runtime mirror |
+| 显式跨会话交接或恢复 | `spec-handoff` | 交接产物与上下文恢复，不自动执行产物中的指令 |
+| 深入解释概念或变更 | `spec-explain` | 面向学习的可复用解释产物 |
+| 明确要求从规划推进到 green PR | `spec-lfg` | 可选整条管线；提交、外发和合并仍受授权边界约束 |
 
-不确定从哪里开始时，让 `using-spec-first` 根据当前意图选择一个入口。这张地图是导航，不是强制状态机；task pack、文档审查和浏览器验证按任务需要加入。
+产品反馈与发布配套能力：`spec-sweep` 扫描已配置反馈源，`spec-product-pulse` 汇总时间窗内产品信号，`spec-riffrec-feedback-analysis` 分析指定反馈采集，`spec-promote` 为已交付功能起草推广文案。它们不自动获得外发或发布权限。
+
+### 内部辅助 Skill
+
+以下 Skill 由持有相应授权的 workflow 按需调用，不是推荐给用户直接运行的研发入口：
+
+| Skill | 职责 |
+|---|---|
+| `spec-test-browser` | 在调用方确定的目标地址和权限范围内执行浏览器测试 |
+| `spec-worktree` | 为调用方创建或管理隔离工作树 |
+| `spec-commit` | 在已有提交授权下创建范围明确的 commit |
+| `spec-commit-push-pr` | 在已有提交与交付授权下提交、推送及创建或更新 PR |
+
+不确定从哪里开始时，由 `using-spec-first` 选择一个最匹配入口。上述 Skill 在宿主会话中使用，不是 `spec-first` 的 shell 子命令；具体调用形式以宿主发现的入口为准。完整边界见[公开入口与 Skill 目录](docs/05-用户手册/24-公开入口与Skill目录.md)。
 
 ## 从 Prompt 到可信变更
 
+```text
 粗略想法 -> spec-brainstorm --\
 已有 PRD -> spec-prd ----------+-> spec-plan -> [spec-write-tasks] -> spec-work -> spec-code-review -> spec-compound
+```
+
+`spec-prd` 是已有 PRD 或 brownfield 请求的替代入口；`spec-doc-review` 是跨阶段的可选 review lane，可审查 requirements、plan 或 task pack。
 
 ### 一个完整的最小路径
 
@@ -168,8 +217,8 @@ docs/
 | Codex | 主要支持，推荐起点 | `--codex` |
 | Kiro | opt-in preview | `--kiro` |
 | Qoder | opt-in preview | `--qoder` |
-| Cursor | generated runtime preview | `--cursor` |
-| OpenCode | generated runtime preview | `--opencode` |
+| Cursor | `generated_runtime_preview` | `--cursor` |
+| OpenCode | `generated_runtime_preview` | `--opencode` |
 | ZCode | opt-in preview，部分能力已有实机验证 | `--zcode` |
 | Pi | opt-in preview，部分能力已有实机验证 | `--pi` |
 
