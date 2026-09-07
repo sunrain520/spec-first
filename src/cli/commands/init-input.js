@@ -179,6 +179,10 @@ async function collectInitInput({
     dryRun: parsed.dryRun,
     target,
     globalProfileConfirmed,
+    // 只有命令行 flag 才算显式身份;交互输入的身份变更由
+    // globalProfileConfirmed 表达,两者共同决定是否覆写全局 profile。
+    explicitName: Boolean(parsed.explicitName),
+    explicitLang: Boolean(parsed.explicitLang),
     userLanguageSyncPreference,
   };
 }

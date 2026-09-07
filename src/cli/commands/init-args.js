@@ -35,6 +35,10 @@ function parseInitArgs(args) {
     platforms: [],
     name: '',
     lang: '',
+    // 用户是否真的在命令行给出身份:name/lang 的"已解析值"带有 global profile、
+    // git user.name、'zh' 等回落,永不为空,不能用来判断显式输入。
+    explicitName: false,
+    explicitLang: false,
     syncUserLanguage: null,
     syncUserLanguageExplicit: false,
     error: '',
@@ -95,6 +99,7 @@ function parseInitArgs(args) {
       const value = readValue(index, arg);
       if (parsed.error) break;
       parsed.name = value;
+      parsed.explicitName = true;
       index += 1;
       continue;
     }
@@ -102,12 +107,14 @@ function parseInitArgs(args) {
       parsed.name = arg.slice('--user='.length);
       if (!parsed.name) parsed.error = 'init: missing value for --user';
       if (parsed.error) break;
+      parsed.explicitName = true;
       continue;
     }
     if (arg === '--lang') {
       const value = readValue(index, arg);
       if (parsed.error) break;
       parsed.lang = value;
+      parsed.explicitLang = true;
       index += 1;
       continue;
     }
@@ -115,6 +122,7 @@ function parseInitArgs(args) {
       parsed.lang = arg.slice('--lang='.length);
       if (!parsed.lang) parsed.error = 'init: missing value for --lang';
       if (parsed.error) break;
+      parsed.explicitLang = true;
       continue;
     }
     const platformChoice = INIT_PLATFORM_CHOICES.find((choice) => arg === `--${choice.flag}`);

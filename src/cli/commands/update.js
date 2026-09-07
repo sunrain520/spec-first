@@ -8,6 +8,7 @@ const {
   discoverChildGitRepos,
   findGitRoot,
 } = require('./init');
+const { defaultInitPlatforms } = require('./init-args');
 const {
   clearCliVersionReminderCooldown,
 } = require('../version-reminder');
@@ -28,6 +29,9 @@ const UPDATE_MESSAGES = {
     upgradedTo: (name, version) => `✅ ${name} 已升级到 v${version}。`,
     upgraded: (name) => `✅ ${name} 升级完成。`,
     refreshSkipped: 'Runtime 刷新：已跳过（无法安全确定刷新范围）。',
+    refreshSkippedNoRuntime: 'Runtime 刷新：已跳过（本项目未安装 spec-first runtime assets）。update 只刷新已安装的宿主，不会替你安装新宿主；如需安装请运行 `spec-first init`。',
+    refreshSkippedChildRuntimeOnly: (count) => `Runtime 刷新：已跳过（父 workspace 自身未安装 runtime，但有 ${count} 个子仓库各自装有 runtime）。update 不会跨仓库代为安装，请按下方命令逐个刷新。`,
+    refreshSkippedStatelessRuntime: (roots) => `Runtime 刷新：已跳过（检测到 ${roots} 目录存在，但其中的 spec-first state.json 缺失，无法确认已安装哪些宿主）。这通常是 init 中断或 state.json 被删除；请按下方命令显式指定宿主重装。`,
     refreshing: (command) => `正在刷新 runtime assets: ${command}`,
     refreshDegraded: (reason) => `Runtime 刷新：降级（${reason}）。`,
     refreshDegradedMissingCli: 'Runtime 刷新：降级（升级后在 PATH 上找不到 `spec-first`）。',
@@ -45,6 +49,9 @@ const UPDATE_MESSAGES = {
     upgradedTo: (name, version) => `✅ ${name} upgraded to v${version}.`,
     upgraded: (name) => `✅ ${name} upgraded.`,
     refreshSkipped: 'Runtime refresh: skipped (scope could not be determined safely).',
+    refreshSkippedNoRuntime: 'Runtime refresh: skipped (no spec-first runtime assets are installed in this project). update refreshes installed hosts only and never installs a new one — run `spec-first init` to install.',
+    refreshSkippedChildRuntimeOnly: (count) => `Runtime refresh: skipped (this parent workspace has no runtime of its own, but ${count} child repo(s) have their own). update never installs across repos — refresh each with the commands below.`,
+    refreshSkippedStatelessRuntime: (roots) => `Runtime refresh: skipped (${roots} exist but their spec-first state.json is missing, so the installed host set cannot be confirmed). This usually means init was interrupted or state.json was deleted — reinstall with an explicit host using the commands below.`,
     refreshing: (command) => `Refreshing runtime assets via: ${command}`,
     refreshDegraded: (reason) => `Runtime refresh: degraded (${reason}).`,
     refreshDegradedMissingCli: 'Runtime refresh: degraded (`spec-first` was not found on PATH after upgrade).',
@@ -66,7 +73,9 @@ const UPDATE_MESSAGES = {
  *   直接跑新生成逻辑的版本错位。
  * - 已知风险(用户确认接受):非 npm-global 安装(Claude plugin / pnpm / volta 等)
  *   会被装出冲突副本;以一条静态 caveat 提示缓解,不做分支检测。
- * - 退出码:0=升级成功;1=升级失败(npm 未找到或返回非 0);2=用法错误。
+ * - 刷新范围只覆盖本项目已安装的宿主。探测不到已装 runtime 时不刷新、不安装,
+ *   打印 fallback 命令后仍以 0 退出(升级本身成功);安装是 `spec-first init` 的职责。
+ * - 退出码:0=升级成功(含无可刷新目标而跳过);1=升级失败或刷新已尝试但失败;2=用法错误。
  */
 async function runUpdate(argv, deps = {}) {
   const args = [...argv];
@@ -124,7 +133,7 @@ async function runUpdate(argv, deps = {}) {
     : messages.upgraded(PACKAGE_NAME));
   const refresh = resolveRuntimeRefresh(cwd);
   if (!refresh || !Array.isArray(refresh.args)) {
-    console.log(messages.refreshSkipped);
+    console.log(resolveRefreshSkippedMessage(messages, refresh));
     printRuntimeRefreshFallback(refresh);
   } else {
     if (!installedCli || !installedCli.ok || !installedCli.cliPath) {
@@ -292,8 +301,22 @@ function resolveRuntimeRefreshCommand(cwd = process.cwd()) {
   // 静默回落到 `init -y` 默认宿主,反而制造本步骤要修的 drift。
   const gitRoot = findGitRoot(root);
   if (gitRoot) {
+    const platforms = detectInstalledRuntimePlatforms(gitRoot);
+    if (platforms.length === 0) {
+      const statelessRuntimeRoots = detectStatelessRuntimeRoots(gitRoot);
+      return {
+        args: null,
+        cwd: gitRoot,
+        reason_code: statelessRuntimeRoots.length > 0
+          ? 'installed-runtime-stateless'
+          : 'installed-runtime-absent',
+        ...(statelessRuntimeRoots.length > 0
+          ? { stateless_runtime_roots: statelessRuntimeRoots }
+          : {}),
+      };
+    }
     return {
-      args: buildRuntimeRefreshArgs(gitRoot),
+      args: buildRuntimeRefreshArgsForPlatforms(platforms),
       cwd: gitRoot,
       reason_code: 'single-git-repo',
     };
@@ -301,17 +324,34 @@ function resolveRuntimeRefreshCommand(cwd = process.cwd()) {
 
   const childRepos = discoverChildGitRepos(root);
   if (childRepos.length > 0) {
-    // 父 workspace 自身装了 host runtime 时按父范围刷新;否则回落到 child host 驱动的 --all-repos。
+    // 父 workspace 自身装了 host runtime 时按父范围刷新。
     const parentPlatforms = detectInstalledRuntimePlatforms(root);
-    const parentHasOwnHostState = parentPlatforms.length > 0;
-    const childPlatforms = detectInstalledRuntimePlatformsInRoots(childRepos.map((repo) => repo.git_root));
+    if (parentPlatforms.length > 0) {
+      return {
+        args: buildRuntimeRefreshArgsForPlatforms(parentPlatforms),
+        cwd: root,
+        reason_code: 'parent-workspace',
+        child_repo_count: childRepos.length,
+      };
+    }
+    // 父自身没装 runtime 时不得代表 child 执行 --all-repos:那会把某个 child 的宿主
+    // 装进从未安装过的兄弟仓库。改为报告各 child 的自有宿主,由 fallback 输出
+    // 逐仓库命令,让用户显式决定。
+    const childRuntimeRepos = childRepos
+      .map((repo) => ({
+        git_root: repo.git_root,
+        workspace_relative_path: repo.workspace_relative_path,
+        platforms: detectInstalledRuntimePlatforms(repo.git_root),
+      }))
+      .filter((entry) => entry.platforms.length > 0);
     return {
-      args: parentHasOwnHostState || childPlatforms.length === 0
-        ? buildRuntimeRefreshArgsForPlatforms(parentPlatforms)
-        : buildRuntimeRefreshArgsForPlatforms(childPlatforms, ['--all-repos']),
+      args: null,
       cwd: root,
-      reason_code: 'parent-workspace',
+      reason_code: childRuntimeRepos.length > 0
+        ? 'child-repo-runtime-only'
+        : 'installed-runtime-absent',
       child_repo_count: childRepos.length,
+      child_runtime_repos: childRuntimeRepos,
     };
   }
 
@@ -327,11 +367,36 @@ function buildRuntimeRefreshArgs(root) {
   return buildRuntimeRefreshArgsForPlatforms(platforms);
 }
 
+// 返回 null 表示"没有可刷新的宿主",由调用方走 skip + fallback 路径。
+// 绝不能回落成无 host flag 的 `init -y`:那会安装 -y 默认宿主(claude+codex),
+// 把"刷新已装 runtime"变成"安装用户从未选择的宿主"。
 function buildRuntimeRefreshArgsForPlatforms(platforms, targetArgs = []) {
-  if (platforms.length === 0) {
-    return ['init', ...targetArgs, '-y'];
+  if (!Array.isArray(platforms) || platforms.length === 0) {
+    return null;
   }
   return ['init', ...platforms.map((platform) => `--${platform}`), ...targetArgs, '-y'];
+}
+
+// state.json 是宿主已安装的判据,但 runtime 根目录可能在 state.json 缺失时仍然存在
+// (init 中断、用户手删)。此时"没有可刷新的宿主"成立,但不能对用户声称"未安装",
+// 否则他会看着满是受管目录的 .claude/ 怀疑命令在说谎。
+function detectStatelessRuntimeRoots(root) {
+  const stateless = [];
+  for (const platform of getSupportedPlatforms()) {
+    const adapter = getAdapter(platform);
+    const stateFile = path.join(root, adapter.stateFile);
+    if (fs.existsSync(stateFile)) {
+      continue;
+    }
+    const runtimeRoot = adapter.stateFile.split('/')[0];
+    if (!runtimeRoot || stateless.includes(runtimeRoot)) {
+      continue;
+    }
+    if (fs.existsSync(path.join(root, runtimeRoot))) {
+      stateless.push(runtimeRoot);
+    }
+  }
+  return stateless;
 }
 
 function detectInstalledRuntimePlatforms(root) {
@@ -352,13 +417,68 @@ function detectInstalledRuntimePlatformsInRoots(roots) {
     .filter((platform) => installed.has(platform));
 }
 
+// 跳过刷新有三种成因,措辞必须分开:未安装 runtime、父 workspace 只有 child 装了
+// runtime、无法确定范围。混用一句会把"我不给你装"误读成"我失败了"。
+function resolveRefreshSkippedMessage(messages, refresh = {}) {
+  const reasonCode = refresh && refresh.reason_code;
+  if (reasonCode === 'installed-runtime-absent') {
+    return messages.refreshSkippedNoRuntime;
+  }
+  if (reasonCode === 'installed-runtime-stateless') {
+    const roots = Array.isArray(refresh.stateless_runtime_roots)
+      ? refresh.stateless_runtime_roots
+      : [];
+    return messages.refreshSkippedStatelessRuntime(roots.join(', '));
+  }
+  if (reasonCode === 'child-repo-runtime-only') {
+    const childRuntimeRepos = Array.isArray(refresh.child_runtime_repos)
+      ? refresh.child_runtime_repos
+      : [];
+    return messages.refreshSkippedChildRuntimeOnly(childRuntimeRepos.length);
+  }
+  return messages.refreshSkipped;
+}
+
 function printRuntimeRefreshFallback(refresh = {}) {
   const args = Array.isArray(refresh.args) ? refresh.args : null;
-  const singleArgs = args && args.length > 0 ? stripInitTargetArgs(args) : ['init', '-y'];
-  const parentArgs = args && args.length > 0 ? args : ['init', '-y'];
-  const childArgs = args && args.length > 0
-    ? insertInitTargetArgs(stripInitTargetArgs(args), ['--repo', '<path>'])
-    : ['init', '--repo', '<path>', '-y'];
+  const childRuntimeRepos = Array.isArray(refresh.child_runtime_repos)
+    ? refresh.child_runtime_repos
+    : [];
+  // 已知每个 child 自有的宿主时,给出精确的逐仓库命令,而不是让用户自己拼
+  // `--repo <path>` 占位符。
+  // 未安装 runtime 时,指引必须是"显式选宿主安装",不能是 `init -y`——后者正是
+  // 会装 -y 默认宿主的命令,与本命令不代为安装的契约冲突。
+  // 没有已知刷新范围时,不能推荐 `init -y`:它安装 -y 默认宿主,正是本命令拒绝代做的事。
+  // 统一给出显式选宿主与交互两条路径。
+  if (!args && childRuntimeRepos.length === 0) {
+    console.error('Install commands:');
+    const suggestedHosts = defaultInitPlatforms();
+    const installArgs = suggestedHosts.length > 0
+      ? buildRuntimeRefreshArgsForPlatforms(suggestedHosts)
+      : null;
+    if (installArgs) {
+      console.error(`  Pick hosts explicitly: ${formatSpecFirstCommand(withDeveloperPlaceholder(installArgs))}`);
+    }
+    console.error('  Or choose interactively: spec-first init');
+    return;
+  }
+  if (!args && childRuntimeRepos.length > 0) {
+    console.error('Fallback commands:');
+    for (const entry of childRuntimeRepos) {
+      const target = entry.workspace_relative_path || entry.git_root;
+      const perChildArgs = insertInitTargetArgs(
+        buildRuntimeRefreshArgsForPlatforms(entry.platforms),
+        ['--repo', target],
+      );
+      console.error(`  Child repo: ${formatSpecFirstCommand(withDeveloperPlaceholder(perChildArgs))}`);
+    }
+    return;
+  }
+  // 到此处 args 必然非空:上面两个 guard 已覆盖所有 !args 情形并 return。
+  // 不再保留 `['init','-y']` 回落——那是本次修复要消灭的静默安装命令。
+  const singleArgs = stripInitTargetArgs(args);
+  const parentArgs = args;
+  const childArgs = insertInitTargetArgs(stripInitTargetArgs(args), ['--repo', '<path>']);
   console.error('Fallback commands:');
   console.error(`  Single repo: ${formatSpecFirstCommand(withDeveloperPlaceholder(singleArgs))}`);
   console.error(`  Parent workspace: ${formatSpecFirstCommand(withDeveloperPlaceholder(parentArgs))}`);
@@ -412,7 +532,9 @@ function printHelp() {
     '',
     `Runs \`${UPGRADE_COMMAND}\` to upgrade the globally installed spec-first CLI,`,
     'then runs a fresh `spec-first init` subprocess to refresh this project\'s runtime assets.',
-    'If refresh cannot run safely, it prints copy-ready fallback init commands.',
+    'Only hosts already installed in this project are refreshed; update never installs a new host.',
+    'If there is nothing to refresh or scope cannot be determined safely, it prints copy-ready',
+    'fallback init commands instead of guessing.',
     '',
     '📘 Usage:',
     '  spec-first update',
@@ -421,7 +543,8 @@ function printHelp() {
     '  -h, --help      Show help',
     '',
     '🔢 Exit codes:',
-    '  0  upgrade succeeded and runtime refresh completed, or refresh was skipped with fallback guidance',
+    '  0  upgrade succeeded and runtime refresh completed, or refresh was skipped with fallback',
+    '     guidance (including when this project has no installed runtime to refresh)',
     '  1  upgrade failed or automatic runtime refresh failed',
     '  2  usage error (unexpected argument)',
     '',
@@ -440,6 +563,7 @@ function printHelp() {
 
 module.exports = {
   buildRuntimeRefreshArgs,
+  buildRuntimeRefreshArgsForPlatforms,
   detectInstalledRuntimePlatforms,
   insertInitTargetArgs,
   readInstalledVersion,
