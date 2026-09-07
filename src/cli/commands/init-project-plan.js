@@ -108,6 +108,8 @@ function buildProjectInitPlan({
   gitRootTopology = 'single-repo',
   dryRun = false,
   globalProfileConfirmed = false,
+  explicitName = false,
+  explicitLang = false,
 }) {
   const normalizedRoot = canonicalizeExistingPath(projectRoot);
   const errors = [];
@@ -340,9 +342,12 @@ function buildProjectInitPlan({
   });
 
   const operationPlan = mergeOperationPlans(destructiveResetPlan, preSyncPlan, initWritePlan);
+  // 显式性必须来自 parseInitArgs 的 flag 事实与交互确认结果,不能从已解析的
+  // name/lang 反推:后者带 global profile / git user.name / 'zh' 回落,永不为空,
+  // 会让 preserve 分支永久不可达,并把每次 init 都报成 overwrite。
   const globalDeveloperWrite = resolveGlobalDeveloperWriteAction(developer, {
-    explicitName: !!user || !!name,
-    explicitLang: !!lang,
+    explicitName: !!explicitName,
+    explicitLang: !!explicitLang,
     confirmedOverwrite: !!globalProfileConfirmed,
   });
   return {

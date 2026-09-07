@@ -1,6 +1,6 @@
 {
   "name": "spec-first",
-  "version": "1.15.1",
+  "version": "1.15.2",
   "description": "AI Coding Harness for Claude Code, Codex, Kiro, Qoder, Cursor, and OpenCode preview — turns one-off AI coding chats into a repo-backed, verifiable engineering loop for spec-driven development. Scripts prepare facts; LLMs decide; evidence stays in your repo.",
   "type": "commonjs",
   "bin": {

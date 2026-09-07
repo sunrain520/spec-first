@@ -25,7 +25,7 @@
     "producer": { "const": "skills/spec-runtime-setup/scripts/setup.cjs" },
     "verification_status": { "enum": ["confirmed", "unverified", "rejected"] },
     "reason_code": { "type": "string", "minLength": 1 },
-    "host": { "enum": ["claude", "codex", "cursor", "kiro", "qoder", "opencode"] },
+    "host": { "enum": ["claude", "codex", "cursor", "kiro", "qoder", "opencode", "zcode"] },
     "loaded_host": { "type": ["string", "null"] },
     "surface_id": { "type": ["string", "null"] },
     "skill_root": { "type": "string", "minLength": 1 },

@@ -173,6 +173,46 @@ describe('spec-runtime-setup active Node consumers', () => {
       .toEqual(['pi']);
   });
 
+  test('host-authority surfaces stay bound to every setup host projection root', () => {
+    const { getAdapter } = require('../../src/cli/adapters');
+    const {
+      CANONICAL_HOSTS,
+      HOST_SKILL_SURFACES,
+      resolveLoadedHostSurface,
+    } = require('../../skills/spec-runtime-setup/scripts/lib/host-authority.cjs');
+
+    // surface 登记面必须恰好覆盖 setup 支持宿主：多登记=放宽 fail-closed 绑定，
+    // 少登记=该宿主 mutation 全部被 host-invocation-surface-unverified 阻断
+    // （claude workflows 根 drift 曾导致此回归）。
+    expect(Object.keys(HOST_SKILL_SURFACES).sort()).toEqual([...CANONICAL_HOSTS].sort());
+
+    for (const host of CANONICAL_HOSTS) {
+      const adapter = getAdapter(host);
+      const surfaces = HOST_SKILL_SURFACES[host];
+      expect(Array.isArray(surfaces)).toBe(true);
+      // adapter 的 workflow 投射根（spec-runtime-setup 的实际生成面）必须登记。
+      expect(surfaces).toContain(adapter.workflowsRoot);
+      for (const surface of surfaces) {
+        expect(surface).toBe(adapter.workflowsRoot);
+      }
+    }
+
+    // 共享面语义：.agents/skills 同时确认 codex 与 zcode。
+    const sharedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'spec-first-surface-guard-'));
+    const sharedSkillRoot = path.join(sharedRoot, '.agents', 'skills', 'spec-runtime-setup');
+    fs.mkdirSync(sharedSkillRoot, { recursive: true });
+    const loaded = resolveLoadedHostSurface(sharedSkillRoot);
+    expect(loaded).toMatchObject({
+      surface_id: '.agents/skills',
+      hosts: ['codex', 'zcode'],
+    });
+
+    // receipt schema 的 host enum 必须与 CANONICAL_HOSTS 同步
+    // （zcode 接入时曾遗漏，confirmed zcode receipt 会违反已发布 schema）。
+    const receiptSchema = JSON.parse(read('docs/contracts/verification/host-invocation-receipt.schema.json'));
+    expect(receiptSchema.properties.host.enum.sort()).toEqual([...CANONICAL_HOSTS].sort());
+  });
+
   test('routes Graphify project-skill installation through the trusted provider map', () => {
     expect(Object.keys(providers).sort()).toEqual(['codegraph', 'graphify']);
     const dependency = {

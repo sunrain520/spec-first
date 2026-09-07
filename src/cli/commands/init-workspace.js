@@ -146,6 +146,9 @@ function buildWorkspaceInitPlan({
   lang = '',
   platforms = [],
   dryRun = false,
+  globalProfileConfirmed = false,
+  explicitName = false,
+  explicitLang = false,
 }) {
   const normalizedWorkspaceRoot = canonicalizeExistingPath(workspaceRoot);
   const parentPlan = buildProjectInitPlan({
@@ -157,6 +160,9 @@ function buildWorkspaceInitPlan({
     lang,
     platforms,
     dryRun,
+    globalProfileConfirmed,
+    explicitName,
+    explicitLang,
     gitRootTopology: 'multi-repo-workspace',
   });
   const childPlans = candidates.map((candidate) => ({
@@ -170,6 +176,9 @@ function buildWorkspaceInitPlan({
       lang,
       platforms,
       dryRun,
+      globalProfileConfirmed,
+      explicitName,
+      explicitLang,
       gitRootTopology: 'single-repo',
     }),
   }));

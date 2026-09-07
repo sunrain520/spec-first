@@ -1,6 +1,20 @@
 # Changelog
 
+- v1.15.2 2026-09-07 01:52:00 leokuang: fix(update,init): 修复两处安装/更新链路缺陷——`spec-first update` 在零已安装宿主时不再回落无 host flag 的 `init -y`（该命令会安装 `-y` 默认宿主 claude+codex），父 workspace 自身无 host state 时也不再代表 child 发出 `--all-repos`（会把某个 child 的宿主装进从未安装过的兄弟仓库）；改为按成因分别报告 `installed-runtime-absent` / `installed-runtime-stateless` / `child-repo-runtime-only`，给出显式选宿主的安装指引或逐子仓库刷新命令，升级本身成功仍以 0 退出。`init` 的全局 developer profile 判定不再从已解析的 name/lang 反推显式性（两者带 global profile、git user.name、'zh' 回落，永不为空，导致 `preserve` 分支不可达、每次 init 都报 overwrite 并重写 `~/.spec-first/.developer`）；显式信号改由 `parseInitArgs` 的 `explicitName`/`explicitLang` 与交互确认结果提供，并补上 `init-workspace.js` 一直缺失的 `globalProfileConfirmed` 转发（否则修复后 `--all-repos` 交互改名会被静默丢弃）。验证：`npm run typecheck`（256 files），`npx jest tests/unit/update-command-spawn.test.js tests/unit/init-global-developer-explicit-signal.test.js`（25 passed），`npm run test:smoke`（5 passed），`npx jest tests/integration/init-six-host-lifecycle.integration.test.js`（35 passed）；实机复验原始症状：虚拟仓库与父 workspace 执行 update 不再生成 runtime 目录、隔离 HOME 下 `init -y` 不再改写 profile 文件。 (user-visible)
+
+- v1.15.2 2026-09-07 00:00:00 leokuang: fix(runtime-setup): 修复 Claude 宿主 spec-runtime-setup mutation 全部被 `host-invocation-surface-unverified` 阻断的回归——`HOST_SKILL_SURFACES` 未登记 claude 的 workflow 投射根 `.claude/spec-first/workflows`（surface 改为按宿主多根登记，与 adapter 投射根对齐）；receipt schema host enum 补齐 zcode；新增 drift-guard 单测强制 surface 登记面与 adapter workflowsRoot、schema enum 与 CANONICAL_HOSTS 同步。 (user-visible)
+
+- v1.15.2 2026-09-06 12:00:00 codex: docs(plan): 逐项补齐下一阶段方案的统计预注册、独立 Judge、experiment manifest、Astra 行为 hard gate、安全红队、自治预算、多 agent 基线、成本与上下文指标、部署闭环、批次状态和 schema/映射治理；仅更新计划合同，未执行实验或产品改动。
+
+- v1.15.2 2026-09-06 11:50:00 codex: docs(plan): 按全面审查建议补强下一阶段开发顺序的 S0 出口、S1 范围门槛、S3 fresh-source 证据模板、S4 比较矩阵与预算降级规则、X1 完成条件及 freshness 复核要求；仅修改方案与变更记录，未执行产品开发或模型评测。
+
 - 记录格式：`- v版本号 YYYY-MM-DD HH:MM:SS 作者: 变更摘要 [(user-visible)]`
+
+- v1.15.2 2026-09-06 11:24:31 tester: docs(plan): 修订下一阶段开发顺序的四项审查问题：模型身份变化后重建对照基线，真实任务三组与预算受限两组分别限定归因范围，区分源码审查、可用模型行为与目标模型行为验收，来源冻结支持可恢复快照而不强制提交；同步阶段出口和 OPT 映射。仅修改方案与变更记录，未启动产品开发、模型实验或 runtime 投射。
+
+- v1.15.2 2026-09-06 10:50:00 tester: docs(release): 准备 npm 补丁发布，修复 README 首次 runtime 准备顺序、英文重复标题和手册链接，恢复 preview 状态标识；更新研发 Skill 地图和架构图契约检查。README 聚焦测试 4 项通过，不把源码检查声明为宿主现场结果。 (user-visible)
+
+- v1.15.1 2026-09-06 10:35:38 tester: docs(readme): 补全中英文研发 Skill 地图，覆盖准备、需求、规划、实现、验证、PR 整改及知识维护，补充专项能力并单列内部 helper，明确按需调用与授权边界；仅修改 README 和变更记录，不影响 runtime。 (user-visible)
 
 - v1.15.1 2026-09-05 22:30:48 tester: docs(plan): 新增下一阶段开发顺序与批次执行指南，连接测量校准、现行行为基线、Astra 核心指令修订、真实任务对照和条件扩展；明确全部 OPT-01 至 OPT-12、F01 至 F33 的去向、实验组映射、source/runtime 验证及仓外支线，补战略索引。仅编写文档，未实施产品改动、模型评测或 runtime 刷新。
 
